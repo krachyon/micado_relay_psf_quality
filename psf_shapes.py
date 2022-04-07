@@ -197,7 +197,6 @@ def do_line_plots(dataframe:pd.DataFrame):
 def do_pcm_plots(dataframe: pd.DataFrame):
     for (mode, size), group in dataframe.groupby([MODE, SIZE]):
 
-
         group = group.sort_values(by=['xshift', 'yshift'])
         shape = [int(np.sqrt(len(group)))] * 2
         xshift, yshift, cr_bound, strehl = np.array((group.xshift, group.yshift, group.expected_deviation_cr, group.strehl))
@@ -237,7 +236,7 @@ def compute_empirical_bounds(pickle_path: pathlib.Path) -> dict:
     shift, psf = read_pickle(pickle_path)
 
     flux = 10_000_000
-    repetitions = 1
+    repetitions = 100
     expected_deviation = empirical_bound(psf, flux=flux, repetitions=repetitions)
     return {'shift': shift,
             'expected_deviation_empirical': expected_deviation,
