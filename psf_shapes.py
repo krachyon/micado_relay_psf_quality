@@ -1,4 +1,5 @@
 # %%
+import matplotlib.colors
 import numpy as np
 import pickle
 import pathlib
@@ -29,7 +30,7 @@ plot_directory.mkdir(parents=False, exist_ok=True)
 
 # %%
 RERUN_ALL_CACHED = False  # you can toggle this at the beginning of a script to re-do everything
-def cached(func: Callable[[],Any], filename: pathlib.Path, rerun: Optional[bool] = False):
+def cached(func: Callable[[], T], filename: pathlib.Path, rerun: Optional[bool] = False) -> T:
     """save the result of running `func` to disk and reload file if run again"""
     global RERUN_ALL_CACHED
     ext = '.pkl.zstd'
@@ -113,7 +114,12 @@ def psf_cramer_rao_bound(psf_img: np.ndarray, constant_noise_variance: float = 0
 # ## Empirical bound calculation
 
 # %%
-def empirical_bound(psf: np.ndarray, flux=10_000_000, repetitions=1):
+def empirical_bound(psf: np.ndarray, flux=10_000_000, repetitions=1) -> float:
+
+    # hacky way to exclude calculation on larger PSFs
+    if psf.size > 512*512:
+        return np.nan
+
     psf = psf / double_trapz(psf)
     psf_extended = np.zeros(np.array(psf.shape)+16)
     psf_extended[8:-8, 8:-8] = psf
@@ -144,21 +150,21 @@ def empirical_bound(psf: np.ndarray, flux=10_000_000, repetitions=1):
     fit_results = np.array(fit_results)
     positional_deviation = np.mean(np.sqrt(fit_results[:, 0]**2+fit_results[:, 1]**2))
 
-    return positional_deviation
+    return float(positional_deviation)
 
 
 # %% [markdown]
 # ## Plotting functions
 
 # %%
-def save_plot(outdir: pathlib.Path, name: str, dpi=300):
+def save_plot(outdir: pathlib.Path, name: str, dpi=300) -> None:
     plt.savefig(outdir/(name+'.pdf'), dpi=dpi)
     plt.savefig(outdir/(name+'.png'), dpi=dpi)
     with open(outdir/(name+'.mplf'), 'wb') as f:
         pickle.dump(plt.gcf(), f)
 
 
-def do_line_plots(dataframe:pd.DataFrame):
+def do_line_plots(dataframe:pd.DataFrame) -> None:
 
     # deviation line plot
     plt.figure()
@@ -194,7 +200,7 @@ def do_line_plots(dataframe:pd.DataFrame):
 
 
 
-def do_pcm_plots(dataframe: pd.DataFrame):
+def do_pcm_plots(dataframe: pd.DataFrame) -> None:
     for (mode, size), group in dataframe.groupby([MODE, SIZE]):
 
         group = group.sort_values(by=['xshift', 'yshift'])
@@ -206,7 +212,7 @@ def do_pcm_plots(dataframe: pd.DataFrame):
         plt.pcolormesh(xshift.reshape(shape), yshift.reshape(shape), cr_bound.reshape(shape),
                        shading='nearest')
         plt.title(f'{mode}, {size}')
-        plt.colorbar(label='expected deviation [~pixel]')
+        plt.colorbar(label=r'Expected centroid deviation [${\mathrm{pixel}} {\sqrt{N_\mathrm{photon}}]}$)')
         save_plot(plot_directory, f'pcm_{mode}_{size}_cr')
 
         plt.figure()
@@ -223,6 +229,51 @@ def do_pcm_plots(dataframe: pd.DataFrame):
         plt.colorbar(label='strehl * expected deviation')
         save_plot(plot_directory, f'pcm_{mode}_{size}_strehl_times_deviation')
 
+
+def do_report_plots(dataframe: pd.DataFrame):
+    big = dataframe[dataframe['size'] == 'big']
+    big = big.sort_values(by=['xshift', 'yshift'])
+
+    deviation = big.expected_deviation_cr / big.pixel_scale
+    ao_selector = (big['mode'] == 'ao')
+    plain_selector = (big['mode'] == 'plain')
+
+    deviation_ratio = np.array(deviation[ao_selector]) / np.array(deviation[plain_selector])
+    shape = [int(np.sqrt(len(deviation_ratio)))] * 2
+
+    xshift, yshift = np.array((big[plain_selector].xshift, big[plain_selector].yshift))
+
+    plt.pcolormesh(xshift.reshape(shape), yshift.reshape(shape), deviation_ratio.reshape(shape),
+                   shading='nearest', cmap='seismic')
+    plt.colorbar(label='Ratio of expected centroid deviation AO/uncorrected')
+    plt.xlabel('x off-axis shift [mm]')
+    plt.ylabel('y off-axis shift [mm]')
+    plt.tight_layout()
+    save_plot(plot_directory, f'relative_astrometric_quality')
+
+
+    normalize = matplotlib.colors.Normalize(vmin=np.min(deviation), vmax=np.max(deviation))
+    plt.figure()
+    plt.pcolormesh(xshift.reshape(shape), yshift.reshape(shape), np.array(deviation[ao_selector]).reshape(shape),
+                   shading='nearest', cmap='viridis', norm=normalize)
+    plt.colorbar(label=r'Expected centroid deviation [${\mathrm{pixel}} {\sqrt{N_\mathrm{photon}}]}$)')
+    plt.xlabel('x off-axis shift [mm]')
+    plt.ylabel('y off-axis shift [mm]')
+    plt.title('Astrometric quality of PSF, AO corrected')
+    plt.tight_layout()
+    save_plot(plot_directory, f'astrometric_quality_ao')
+
+
+    plt.figure()
+    plt.pcolormesh(xshift.reshape(shape), yshift.reshape(shape), np.array(deviation[plain_selector]).reshape(shape),
+                   shading='nearest', cmap='viridis', norm=normalize)
+    plt.colorbar(label=r'Expected centroid deviation [${\mathrm{pixel}} {\sqrt{N_\mathrm{photon}}]}$)')
+    plt.xlabel('x off-axis shift [mm]')
+    plt.ylabel('y off-axis shift [mm]')
+    plt.title('Astrometric quality of PSF, no correction')
+    plt.tight_layout()
+    save_plot(plot_directory, f'astrometric_quality_plain')
+
 # %%
 # Wrapper to run it all
 
@@ -236,7 +287,7 @@ def compute_empirical_bounds(pickle_path: pathlib.Path) -> dict:
     shift, psf = read_pickle(pickle_path)
 
     flux = 10_000_000
-    repetitions = 100
+    repetitions = 500
     expected_deviation = empirical_bound(psf, flux=flux, repetitions=repetitions)
     return {'shift': shift,
             'expected_deviation_empirical': expected_deviation,
@@ -277,8 +328,9 @@ if __name__ == '__main__':
     dataframe['yshift'] = dataframe['shift'].apply(lambda x: x[1])
     dataframe['total_shift'] = np.sqrt(dataframe.xshift**2+dataframe.yshift**2)
 
-    do_line_plots(dataframe)
-    do_pcm_plots(dataframe)
+    #do_line_plots(dataframe)
+    #do_pcm_plots(dataframe)
+    do_report_plots(dataframe)
     plt.show()
 
 
