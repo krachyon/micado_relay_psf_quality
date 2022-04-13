@@ -39,7 +39,9 @@ data_sets = [
     {NAME: 'plain_big', PATH: pathlib.Path('PSFsOhneAO.pkl'),
         TAGS: {SIZE: 'big', MODE: 'plain', PIXEL_SCALE: 1}},
     {NAME: 'bare_big', PATH: pathlib.Path('PSFsNurM4.pkl'),
-        TAGS: {SIZE: 'big', MODE: 'bare', PIXEL_SCALE: 1}}
+        TAGS: {SIZE: 'big', MODE: 'bare', PIXEL_SCALE: 1}},
+    {NAME: 'baseline_big', PATH: pathlib.Path('PSFsWithoutNASDistortion.pkl'),
+     TAGS: {SIZE: 'big', MODE: 'baseline', PIXEL_SCALE: 1}}
     ]
 
 data_directory = pathlib.Path('preprocessed_inputs')

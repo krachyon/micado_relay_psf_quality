@@ -238,6 +238,7 @@ def do_report_plots(dataframe: pd.DataFrame):
     ao_selector = (big['mode'] == 'ao')
     plain_selector = (big['mode'] == 'plain')
     bare_selector = (big['mode'] == 'bare')
+    baseline_selector = (big['mode'] == 'baseline')
 
     deviation_ratio = np.array(deviation[ao_selector]) / np.array(deviation[plain_selector])
     shape = [int(np.sqrt(len(deviation_ratio)))] * 2
@@ -318,6 +319,34 @@ def do_report_plots(dataframe: pd.DataFrame):
     plt.title('Strehl-ratio, only M4')
     plt.tight_layout()
     save_plot(plot_directory, f'strehl_bare')
+
+    # attention, hack:
+    # baseline plots; order does not seem to behave, need to round values to sort...
+    baseline = big[big['mode'] == 'baseline']
+    baseline = baseline.sort_values(by=['xshift', 'yshift'], key=lambda x: np.round(x, decimals=0))
+    xshift_baseline, yshift_baseline = np.array((baseline.xshift, baseline.yshift))
+    deviation_baseline = np.array(baseline.expected_deviation_cr)
+    strehl_baseline = np.array(baseline.strehl)
+
+    plt.figure()
+    plt.pcolormesh(xshift_baseline.reshape(shape), yshift_baseline.reshape(shape), deviation_baseline.reshape(shape),
+                   shading='nearest', cmap='viridis', norm=quality_norm)
+    plt.colorbar(label=r'Expected centroid precision [${\mathrm{pixel}} / {\sqrt{N_\mathrm{photon}}]}$')
+    plt.xlabel('x off-axis shift [mm]')
+    plt.ylabel('y off-axis shift [mm]')
+    plt.title('Astrometric quality of PSF, no nasmyth distortion')
+    plt.tight_layout()
+    save_plot(plot_directory, f'astrometric_quality_baseline')
+
+    plt.figure()
+    plt.pcolormesh(xshift_baseline.reshape(shape), yshift_baseline.reshape(shape), strehl_baseline.reshape(shape),
+                   shading='nearest', cmap='viridis', norm=strehl_norm)
+    plt.colorbar(label=r'Strehl-ratio')
+    plt.xlabel('x off-axis shift [mm]')
+    plt.ylabel('y off-axis shift [mm]')
+    plt.title('Strehl-ratio, no nasmyth distortion')
+    plt.tight_layout()
+    save_plot(plot_directory, f'strehl_baseline')
 
 # %%
 # Wrapper to run it all
