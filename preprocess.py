@@ -6,9 +6,13 @@ from common import *
 from typing import Iterable, TypeVar
 import json
 from tqdm.auto import tqdm
-from dataclasses import dataclass
-
 T = TypeVar('T')
+"""
+This script takes large pickles containing
+tuple[list[list[shifts]], list[list[psf_array]]] 
+and splits them into individual files containing
+tuple[shift, psf_array]
+"""
 
 
 def flatten(input_list: Iterable[list[T]]) -> list[T]:
@@ -24,6 +28,7 @@ def read_pickle(pkl_path: pathlib.Path) -> tuple[np.ndarray, np.ndarray]:
     return shifts, psfs
 
 
+# Define the location and metadata of input files
 data_sets = [
     {NAME: 'plain_small', PATH: pathlib.Path('PSFs-Nas5.pkl'),
         TAGS: {SIZE: 'small', MODE: 'plain', PIXEL_SCALE: 1}},

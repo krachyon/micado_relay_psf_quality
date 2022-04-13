@@ -301,7 +301,12 @@ def compute_strehls(pickle_path: pathlib.Path) -> dict:
 
 
 def do_computations(data_dir: pathlib.Path = data_directory,
-                    functions_to_apply: tuple[Callable[[T, T], T]] = (compute_cr_bounds, compute_empirical_bounds, compute_strehls)):
+                    functions_to_apply: tuple[Callable[[T, T], T]] = (compute_cr_bounds, compute_empirical_bounds, compute_strehls)) -> dict:
+    """data dir should contain the following: subfolders, corresponding to various scenarios, containing
+    a) a json-file called 'tags.json' that contains metadata about the run
+    b) a bunch of pickles that contain a tuple-like, the first element being the off-axis shift, the second one
+       an array that samples the PSF
+    """
     records = []
     with mp.Pool(mp.cpu_count() - 1) as p:
         for dataset_dir in data_dir.iterdir():
@@ -323,6 +328,7 @@ def do_computations(data_dir: pathlib.Path = data_directory,
 if __name__ == '__main__':
     records = cached(lambda: do_computations(), pathlib.Path('./cached_records'), rerun=False)
     dataframe = pd.DataFrame.from_records(records)
+    # combine nan-containing rows. Each row should have a single non-nan entry
     dataframe = dataframe.groupby([dataframe['shift'].astype(str), MODE, SIZE], as_index=False).first()
     dataframe['xshift'] = dataframe['shift'].apply(lambda x: x[0])
     dataframe['yshift'] = dataframe['shift'].apply(lambda x: x[1])
