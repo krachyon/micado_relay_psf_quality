@@ -244,8 +244,10 @@ def do_report_plots(dataframe: pd.DataFrame):
 
     xshift, yshift = np.array((big[plain_selector].xshift, big[plain_selector].yshift))
 
+
+    diverging_norm = matplotlib.colors.Normalize(vmin=0, vmax=2)
     plt.pcolormesh(xshift.reshape(shape), yshift.reshape(shape), deviation_ratio.reshape(shape),
-                   shading='nearest', cmap='seismic')
+                   shading='nearest', cmap='seismic', norm=diverging_norm)
     plt.colorbar(label='Ratio of expected centroid deviation AO/uncorrected')
     plt.xlabel('x off-axis shift [mm]')
     plt.ylabel('y off-axis shift [mm]')
