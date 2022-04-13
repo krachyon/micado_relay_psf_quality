@@ -199,7 +199,6 @@ def do_line_plots(dataframe:pd.DataFrame) -> None:
     save_plot(plot_directory, 'strehl_times_deviation')
 
 
-
 def do_pcm_plots(dataframe: pd.DataFrame) -> None:
     for (mode, size), group in dataframe.groupby([MODE, SIZE]):
 
@@ -235,8 +234,10 @@ def do_report_plots(dataframe: pd.DataFrame):
     big = big.sort_values(by=['xshift', 'yshift'])
 
     deviation = big.expected_deviation_cr / big.pixel_scale
+    strehl = big.strehl
     ao_selector = (big['mode'] == 'ao')
     plain_selector = (big['mode'] == 'plain')
+    bare_selector = (big['mode'] == 'bare')
 
     deviation_ratio = np.array(deviation[ao_selector]) / np.array(deviation[plain_selector])
     shape = [int(np.sqrt(len(deviation_ratio)))] * 2
@@ -251,31 +252,74 @@ def do_report_plots(dataframe: pd.DataFrame):
     plt.tight_layout()
     save_plot(plot_directory, f'relative_astrometric_quality')
 
-
-    normalize = matplotlib.colors.Normalize(vmin=np.min(deviation), vmax=np.max(deviation))
+    # quality plots
+    quality_norm = matplotlib.colors.Normalize(vmin=np.min(deviation), vmax=np.max(deviation))
     plt.figure()
     plt.pcolormesh(xshift.reshape(shape), yshift.reshape(shape), np.array(deviation[ao_selector]).reshape(shape),
-                   shading='nearest', cmap='viridis', norm=normalize)
-    plt.colorbar(label=r'Expected centroid deviation [${\mathrm{pixel}} {\sqrt{N_\mathrm{photon}}]}$)')
+                   shading='nearest', cmap='viridis', norm=quality_norm)
+    plt.colorbar(label=r'Expected centroid precision [${\mathrm{pixel}} / {\sqrt{N_\mathrm{photon}}]}$')
     plt.xlabel('x off-axis shift [mm]')
     plt.ylabel('y off-axis shift [mm]')
     plt.title('Astrometric quality of PSF, AO corrected')
     plt.tight_layout()
     save_plot(plot_directory, f'astrometric_quality_ao')
 
-
     plt.figure()
     plt.pcolormesh(xshift.reshape(shape), yshift.reshape(shape), np.array(deviation[plain_selector]).reshape(shape),
-                   shading='nearest', cmap='viridis', norm=normalize)
-    plt.colorbar(label=r'Expected centroid deviation [${\mathrm{pixel}} {\sqrt{N_\mathrm{photon}}]}$)')
+                   shading='nearest', cmap='viridis', norm=quality_norm)
+    plt.colorbar(label=r'Expected centroid precision [${\mathrm{pixel}} / {\sqrt{N_\mathrm{photon}}]}$')
     plt.xlabel('x off-axis shift [mm]')
     plt.ylabel('y off-axis shift [mm]')
     plt.title('Astrometric quality of PSF, no correction')
     plt.tight_layout()
     save_plot(plot_directory, f'astrometric_quality_plain')
 
+    plt.figure()
+    plt.pcolormesh(xshift.reshape(shape), yshift.reshape(shape), np.array(deviation[bare_selector]).reshape(shape),
+                   shading='nearest', cmap='viridis', norm=quality_norm)
+    plt.colorbar(label=r'Expected centroid precision [${\mathrm{pixel}} / {\sqrt{N_\mathrm{photon}}]}$')
+    plt.xlabel('x off-axis shift [mm]')
+    plt.ylabel('y off-axis shift [mm]')
+    plt.title('Astrometric quality of PSF, only M4')
+    plt.tight_layout()
+    save_plot(plot_directory, f'astrometric_quality_bare')
+
+    # strehl plots
+
+    strehl_norm = matplotlib.colors.Normalize(vmin=np.min(strehl), vmax=np.max(strehl))
+    plt.figure()
+    plt.pcolormesh(xshift.reshape(shape), yshift.reshape(shape), np.array(strehl[ao_selector]).reshape(shape),
+                   shading='nearest', cmap='viridis', norm=strehl_norm)
+    plt.colorbar(label=r'Strehl-ratio')
+    plt.xlabel('x off-axis shift [mm]')
+    plt.ylabel('y off-axis shift [mm]')
+    plt.title('Strehl-ratio, AO corrected')
+    plt.tight_layout()
+    save_plot(plot_directory, f'strehl_ao')
+
+    plt.figure()
+    plt.pcolormesh(xshift.reshape(shape), yshift.reshape(shape), np.array(strehl[plain_selector]).reshape(shape),
+                   shading='nearest', cmap='viridis', norm=strehl_norm)
+    plt.colorbar(label=r'Strehl-ratio')
+    plt.xlabel('x off-axis shift [mm]')
+    plt.ylabel('y off-axis shift [mm]')
+    plt.title('Strehl-ratio, uncorrected')
+    plt.tight_layout()
+    save_plot(plot_directory, f'strehl_plain')
+
+    plt.figure()
+    plt.pcolormesh(xshift.reshape(shape), yshift.reshape(shape), np.array(strehl[bare_selector]).reshape(shape),
+                   shading='nearest', cmap='viridis', norm=strehl_norm)
+    plt.colorbar(label=r'Strehl-ratio')
+    plt.xlabel('x off-axis shift [mm]')
+    plt.ylabel('y off-axis shift [mm]')
+    plt.title('Strehl-ratio, only M4')
+    plt.tight_layout()
+    save_plot(plot_directory, f'strehl_bare')
+
 # %%
 # Wrapper to run it all
+
 
 def compute_cr_bounds(pickle_path: pathlib.Path) -> dict:
     shift, psf = read_pickle(pickle_path)
@@ -301,7 +345,7 @@ def compute_strehls(pickle_path: pathlib.Path) -> dict:
 
 
 def do_computations(data_dir: pathlib.Path = data_directory,
-                    functions_to_apply: tuple[Callable[[T, T], T]] = (compute_cr_bounds, compute_empirical_bounds, compute_strehls)) -> dict:
+                    functions_to_apply: tuple[Callable[[T, T], T]] = (compute_cr_bounds, compute_strehls)) -> dict:
     """data dir should contain the following: subfolders, corresponding to various scenarios, containing
     a) a json-file called 'tags.json' that contains metadata about the run
     b) a bunch of pickles that contain a tuple-like, the first element being the off-axis shift, the second one
